@@ -98,6 +98,16 @@ const CONTACTS = [
 ];
 
 type Tab = "chats" | "contacts" | "profile";
+type Modal = "new-chat" | "new-channel" | "new-contact" | null;
+
+const AVATAR_COLORS = [
+  "from-violet-500 to-purple-600",
+  "from-cyan-500 to-blue-600",
+  "from-pink-500 to-rose-600",
+  "from-emerald-500 to-teal-600",
+  "from-amber-500 to-orange-600",
+  "from-indigo-500 to-blue-600",
+];
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<Tab>("chats");
@@ -107,6 +117,11 @@ export default function Index() {
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [playingVoice, setPlayingVoice] = useState<number | null>(null);
+  const [modal, setModal] = useState<Modal>(null);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelDesc, setNewChannelDesc] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chats, setChats] = useState(CHATS);
   const [recordTime, setRecordTime] = useState(0);
@@ -174,6 +189,64 @@ export default function Index() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const closeModal = () => {
+    setModal(null);
+    setNewName("");
+    setNewPhone("");
+    setNewChannelName("");
+    setNewChannelDesc("");
+  };
+
+  const handleAddContact = () => {
+    if (!newName.trim()) return;
+    closeModal();
+  };
+
+  const handleCreateChannel = () => {
+    if (!newChannelName.trim()) return;
+    const initials = newChannelName.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+    const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+    setChats((prev) => [
+      {
+        id: Date.now(),
+        name: newChannelName.trim(),
+        avatar: initials,
+        color,
+        lastMessage: "Канал создан",
+        time: "Сейчас",
+        unread: 0,
+        online: false,
+        isGroup: true,
+        messages: [
+          { id: 1, from: "them", text: `Канал «${newChannelName.trim()}» создан. ${newChannelDesc ? newChannelDesc : ""}`, time: "Сейчас", type: "text" as const },
+        ],
+      },
+      ...prev,
+    ]);
+    closeModal();
+  };
+
+  const handleCreateChat = () => {
+    if (!newName.trim()) return;
+    const initials = newName.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+    const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+    const newChat = {
+      id: Date.now(),
+      name: newName.trim(),
+      avatar: initials,
+      color,
+      lastMessage: "",
+      time: "Сейчас",
+      unread: 0,
+      online: false,
+      messages: [] as { id: number; from: string; text: string; time: string; type: "text" | "voice" }[],
+    };
+    setChats((prev) => [newChat, ...prev]);
+    setActiveChat(newChat.id);
+    setActiveTab("chats");
+    closeModal();
+  };
+
   return (
     <div className="messenger-root">
       {showVideoCall && (
@@ -206,11 +279,84 @@ export default function Index() {
         </div>
       )}
 
+      {/* Modals */}
+      {modal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            {modal === "new-chat" && (
+              <>
+                <div className="modal-header">
+                  <div className="modal-title">Новый чат</div>
+                  <button className="modal-close" onClick={closeModal}><Icon name="X" size={16} /></button>
+                </div>
+                <div className="modal-body">
+                  <input className="modal-input" placeholder="Имя контакта" value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+                  <input className="modal-input" placeholder="Номер телефона" value={newPhone} onChange={e => setNewPhone(e.target.value)} />
+                </div>
+                <div className="modal-footer">
+                  <button className="modal-btn-cancel" onClick={closeModal}>Отмена</button>
+                  <button className="modal-btn-ok" onClick={handleCreateChat} disabled={!newName.trim()}>Создать</button>
+                </div>
+              </>
+            )}
+            {modal === "new-channel" && (
+              <>
+                <div className="modal-header">
+                  <div className="modal-title">Новый канал</div>
+                  <button className="modal-close" onClick={closeModal}><Icon name="X" size={16} /></button>
+                </div>
+                <div className="modal-body">
+                  <input className="modal-input" placeholder="Название канала" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} autoFocus />
+                  <textarea className="modal-input modal-textarea" placeholder="Описание (необязательно)" value={newChannelDesc} onChange={e => setNewChannelDesc(e.target.value)} />
+                </div>
+                <div className="modal-footer">
+                  <button className="modal-btn-cancel" onClick={closeModal}>Отмена</button>
+                  <button className="modal-btn-ok" onClick={handleCreateChannel} disabled={!newChannelName.trim()}>Создать</button>
+                </div>
+              </>
+            )}
+            {modal === "new-contact" && (
+              <>
+                <div className="modal-header">
+                  <div className="modal-title">Новый контакт</div>
+                  <button className="modal-close" onClick={closeModal}><Icon name="X" size={16} /></button>
+                </div>
+                <div className="modal-body">
+                  <input className="modal-input" placeholder="Имя" value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+                  <input className="modal-input" placeholder="Номер телефона" value={newPhone} onChange={e => setNewPhone(e.target.value)} />
+                </div>
+                <div className="modal-footer">
+                  <button className="modal-btn-cancel" onClick={closeModal}>Отмена</button>
+                  <button className="modal-btn-ok" onClick={handleAddContact} disabled={!newName.trim()}>Добавить</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <div className="logo-icon"><Icon name="MessageCircle" size={20} /></div>
             <span className="logo-text">Вектор</span>
+          </div>
+          <div className="header-actions">
+            {activeTab === "chats" && (
+              <>
+                <button className="plus-btn" title="Новый чат" onClick={() => setModal("new-chat")}>
+                  <Icon name="MessageSquarePlus" size={17} />
+                </button>
+                <button className="plus-btn" title="Новый канал" onClick={() => setModal("new-channel")}>
+                  <Icon name="Radio" size={17} />
+                </button>
+              </>
+            )}
+            {activeTab === "contacts" && (
+              <button className="plus-btn" title="Добавить контакт" onClick={() => setModal("new-contact")}>
+                <Icon name="UserPlus" size={17} />
+              </button>
+            )}
           </div>
         </div>
 
