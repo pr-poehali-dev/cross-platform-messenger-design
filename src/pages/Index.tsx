@@ -98,7 +98,7 @@ const CONTACTS = [
 ];
 
 type Tab = "chats" | "contacts" | "profile";
-type Modal = "new-chat" | "new-channel" | "new-contact" | null;
+type Modal = "new-chat" | "new-channel" | "new-contact" | "edit-username" | null;
 
 const AVATAR_COLORS = [
   "from-violet-500 to-purple-600",
@@ -124,8 +124,14 @@ export default function Index() {
   const [newChannelDesc, setNewChannelDesc] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chats, setChats] = useState(CHATS);
+  const [archivedChats, setArchivedChats] = useState<typeof CHATS>([]);
+  const [showArchive, setShowArchive] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ chatId: number; x: number; y: number } | null>(null);
   const [recordTime, setRecordTime] = useState(0);
   const recordInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [username, setUsername] = useState("username");
+  const [editingUsername, setEditingUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
 
   const currentChat = chats.find((c) => c.id === activeChat);
 
@@ -189,12 +195,41 @@ export default function Index() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const archiveChat = (chatId: number) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+    setArchivedChats(prev => [chat, ...prev]);
+    setChats(prev => prev.filter(c => c.id !== chatId));
+    if (activeChat === chatId) setActiveChat(null);
+    setContextMenu(null);
+  };
+
+  const unarchiveChat = (chatId: number) => {
+    const chat = archivedChats.find(c => c.id === chatId);
+    if (!chat) return;
+    setChats(prev => [chat, ...prev]);
+    setArchivedChats(prev => prev.filter(c => c.id !== chatId));
+  };
+
   const closeModal = () => {
     setModal(null);
     setNewName("");
     setNewPhone("");
     setNewChannelName("");
     setNewChannelDesc("");
+    setEditingUsername("");
+    setUsernameError("");
+  };
+
+  const handleSaveUsername = () => {
+    const val = editingUsername.trim().replace(/^@/, "");
+    if (!val) { setUsernameError("Юзернейм не может быть пустым"); return; }
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(val)) {
+      setUsernameError("3–20 символов: буквы, цифры, _");
+      return;
+    }
+    setUsername(val);
+    closeModal();
   };
 
   const handleAddContact = () => {
@@ -246,6 +281,13 @@ export default function Index() {
     setActiveTab("chats");
     closeModal();
   };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const hide = () => setContextMenu(null);
+    if (contextMenu) window.addEventListener("click", hide);
+    return () => window.removeEventListener("click", hide);
+  }, [contextMenu]);
 
   return (
     <div className="messenger-root">
@@ -331,7 +373,47 @@ export default function Index() {
                 </div>
               </>
             )}
+            {modal === "edit-username" && (
+              <>
+                <div className="modal-header">
+                  <div className="modal-title">Изменить юзернейм</div>
+                  <button className="modal-close" onClick={closeModal}><Icon name="X" size={16} /></button>
+                </div>
+                <div className="modal-body">
+                  <div className="username-hint">Другие смогут найти вас по юзернейму. Только латиница, цифры и _</div>
+                  <div className="username-input-wrap">
+                    <span className="username-at">@</span>
+                    <input
+                      className="modal-input username-field"
+                      placeholder="my_username"
+                      value={editingUsername}
+                      onChange={e => { setEditingUsername(e.target.value.replace(/^@/, "")); setUsernameError(""); }}
+                      autoFocus
+                      onKeyDown={e => e.key === "Enter" && handleSaveUsername()}
+                    />
+                  </div>
+                  {usernameError && <div className="username-error">{usernameError}</div>}
+                </div>
+                <div className="modal-footer">
+                  <button className="modal-btn-cancel" onClick={closeModal}>Отмена</button>
+                  <button className="modal-btn-ok" onClick={handleSaveUsername} disabled={!editingUsername.trim()}>Сохранить</button>
+                </div>
+              </>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          className="ctx-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button className="ctx-item" onClick={() => archiveChat(contextMenu.chatId)}>
+            <Icon name="Archive" size={15} /> В архив
+          </button>
         </div>
       )}
 
@@ -387,32 +469,82 @@ export default function Index() {
         </nav>
 
         <div className="sidebar-list">
-          {activeTab === "chats" && filteredChats.map((chat) => (
-            <button
-              key={chat.id}
-              className={`chat-item ${activeChat === chat.id ? "chat-item-active" : ""}`}
-              onClick={() => { setActiveChat(chat.id); setActiveTab("chats"); }}
-            >
-              <div className="chat-item-avatar-wrap">
-                <div className={`chat-avatar bg-gradient-to-br ${chat.color}`}>{chat.avatar}</div>
-                {chat.online && <span className="online-dot" />}
-              </div>
-              <div className="chat-item-info">
-                <div className="chat-item-top">
-                  <span className="chat-item-name">{chat.name}</span>
-                  <span className="chat-item-time">{chat.time}</span>
+          {activeTab === "chats" && (
+            <>
+              {filteredChats.map((chat) => (
+                <button
+                  key={chat.id}
+                  className={`chat-item ${activeChat === chat.id ? "chat-item-active" : ""}`}
+                  onClick={() => { setActiveChat(chat.id); setActiveTab("chats"); }}
+                  onContextMenu={e => { e.preventDefault(); setContextMenu({ chatId: chat.id, x: e.clientX, y: e.clientY }); }}
+                >
+                  <div className="chat-item-avatar-wrap">
+                    <div className={`chat-avatar bg-gradient-to-br ${chat.color}`}>{chat.avatar}</div>
+                    {chat.online && <span className="online-dot" />}
+                  </div>
+                  <div className="chat-item-info">
+                    <div className="chat-item-top">
+                      <span className="chat-item-name">{chat.name}</span>
+                      <span className="chat-item-time">{chat.time}</span>
+                    </div>
+                    <div className="chat-item-bottom">
+                      <span className="chat-item-last">
+                        {chat.lastMessage
+                          ? chat.lastMessage
+                          : <span className="voice-preview flex items-center gap-1"><Icon name="Mic" size={11} /> Голосовое</span>}
+                      </span>
+                      {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
+                    </div>
+                  </div>
+                </button>
+              ))}
+
+              {/* Archive entry */}
+              {archivedChats.length > 0 && (
+                <button className="archive-entry" onClick={() => setShowArchive(v => !v)}>
+                  <div className="archive-icon"><Icon name="Archive" size={17} /></div>
+                  <div className="chat-item-info">
+                    <div className="chat-item-top">
+                      <span className="chat-item-name">Архив</span>
+                      <span className="chat-item-time">{archivedChats.length}</span>
+                    </div>
+                    <div className="chat-item-bottom">
+                      <span className="chat-item-last">
+                        {archivedChats[0]?.name} и другие
+                      </span>
+                    </div>
+                  </div>
+                  <Icon name={showArchive ? "ChevronUp" : "ChevronDown"} size={14} className="archive-chevron" />
+                </button>
+              )}
+
+              {/* Archive list */}
+              {showArchive && archivedChats.map((chat) => (
+                <div key={chat.id} className="archived-chat-item">
+                  <button
+                    className={`chat-item ${activeChat === chat.id ? "chat-item-active" : ""} archive-sub-item`}
+                    onClick={() => { setActiveChat(chat.id); }}
+                  >
+                    <div className="chat-item-avatar-wrap">
+                      <div className={`chat-avatar bg-gradient-to-br ${chat.color}`} style={{ opacity: 0.7 }}>{chat.avatar}</div>
+                    </div>
+                    <div className="chat-item-info">
+                      <div className="chat-item-top">
+                        <span className="chat-item-name" style={{ opacity: 0.7 }}>{chat.name}</span>
+                        <span className="chat-item-time">{chat.time}</span>
+                      </div>
+                      <div className="chat-item-bottom">
+                        <span className="chat-item-last">{chat.lastMessage || "Голосовое"}</span>
+                      </div>
+                    </div>
+                  </button>
+                  <button className="unarchive-btn" title="Разархивировать" onClick={() => unarchiveChat(chat.id)}>
+                    <Icon name="ArchiveRestore" size={14} />
+                  </button>
                 </div>
-                <div className="chat-item-bottom">
-                  <span className="chat-item-last">
-                    {chat.lastMessage
-                      ? chat.lastMessage
-                      : <span className="voice-preview flex items-center gap-1"><Icon name="Mic" size={11} /> Голосовое</span>}
-                  </span>
-                  {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
-                </div>
-              </div>
-            </button>
-          ))}
+              ))}
+            </>
+          )}
 
           {activeTab === "contacts" && filteredContacts.map((contact) => (
             <button
@@ -444,7 +576,14 @@ export default function Index() {
                 <div className="profile-avatar bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600">ВМ</div>
               </div>
               <div className="profile-name">Виктор Морозов</div>
-              <div className="profile-username">@username</div>
+              <button
+                className="profile-username profile-username-btn"
+                onClick={() => { setEditingUsername(username); setModal("edit-username"); }}
+                title="Изменить юзернейм"
+              >
+                @{username}
+                <Icon name="Pencil" size={11} className="profile-username-edit" />
+              </button>
 
               <div className="profile-fields">
                 {([
