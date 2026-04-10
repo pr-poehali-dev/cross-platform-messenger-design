@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS moon_purchases (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(64) NOT NULL,
+  moons INTEGER NOT NULL,
+  bonus_moons INTEGER NOT NULL DEFAULT 0,
+  price_rub INTEGER NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  tg_message_id INTEGER,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_moons (
+  username VARCHAR(64) PRIMARY KEY,
+  balance INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_nfts (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(64) NOT NULL,
+  nft_id INTEGER NOT NULL,
+  nft_name VARCHAR(128) NOT NULL,
+  nft_emoji VARCHAR(16) NOT NULL,
+  purchased_at TIMESTAMP DEFAULT NOW()
+);
